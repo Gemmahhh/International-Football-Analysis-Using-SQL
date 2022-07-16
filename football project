@@ -1,0 +1,247 @@
+--QUESTION 1
+--Lets start with previewing the dataset
+SELECT *
+FROM football_results;
+
+--TOP SHOOTOUT TEAMS
+SELECT winner, COUNT(winner) AS winner_count
+FROM shootout
+GROUP BY winner
+ORDER BY COUNT(winner) DESC
+LIMIT 5;
+
+--CREATING AN away_summary VIEW
+CREATE VIEW away_summary AS
+SELECT away_team, SUM(away_score) AS total_away_score
+FROM football_results
+GROUP BY away_team
+ORDER BY SUM(away_score) DESC;
+
+--CREATING A home_summary VIEW
+CREATE VIEW home_summary AS
+SELECT home_team, SUM(home_score) AS total_home_score
+FROM football_results
+GROUP BY home_team
+ORDER BY SUM(home_score) DESC;
+
+SELECT *
+FROM home_summary;
+
+--JOINING THE 2 VIEWS
+SELECT away_team, total_away_score + total_home_score as total_score
+FROM home_summary
+INNER JOIN away_summary ON home_summary.home_team = away_summary.away_team;
+
+--now, lets see how many goals BRAZIL had in different tournaments
+--as a home_team
+SELECT tournament, SUM(home_score)
+FROM football_results
+WHERE home_team = 'Brazil'
+GROUP BY tournament
+ORDER BY SUM(home_score) DESC;
+
+--as an away team
+SELECT tournament, SUM(away_score)
+FROM football_results
+WHERE away_team = 'Brazil'
+GROUP BY tournament
+ORDER BY SUM(away_score) DESC;
+
+--lets find out how many wins BRAZIL has playing as the home_team
+CREATE VIEW brazil_home AS
+SELECT home_team, country,
+	CASE WHEN home_score > away_score
+		THEN '1' 
+		ELSE '0'
+	END  AS WinOrLoss
+FROM football_results
+WHERE home_team = 'Brazil' AND neutral = false;
+
+SELECT COUNT(winorloss)
+FROM brazil_home
+GROUP BY winorloss;
+
+--lets find out how many wins BRAZIL has playing as the away_team
+CREATE VIEW brazil_away AS
+SELECT away_team, country,
+	CASE WHEN away_score > home_score
+		THEN '1' 
+		ELSE '0'
+	END  AS WinOrLoss
+FROM football_results
+WHERE away_team = 'Brazil' AND neutral = false;
+
+SELECT COUNT(winorloss)
+FROM brazil_away
+GROUP BY winorloss;
+
+--Now lets find out how brazil played in neutral matches
+CREATE VIEW brazil_home_neutral AS
+SELECT home_team, country,
+	CASE WHEN home_score > away_score
+		THEN '1' 
+		ELSE '0'
+	END  AS WinOrLoss
+FROM football_results
+WHERE home_team = 'Brazil' AND neutral = true;
+
+SELECT COUNT(winorloss)
+FROM brazil_home_neutral
+GROUP BY winorloss;
+
+
+CREATE VIEW brazil_away_neutral AS
+SELECT away_team, country,
+	CASE WHEN away_score > home_score
+		THEN '1' 
+		ELSE '0'
+	END  AS WinOrLoss
+FROM football_results
+WHERE away_team = 'Brazil' AND neutral = true;
+
+SELECT COUNT(winorloss)
+FROM brazil_away_neutral
+GROUP BY winorloss;
+
+
+--QUESTION 2
+-- lets create a table that has a column to show the team that won 
+CREATE TABLE winners_and_draws AS 
+SELECT *,
+	CASE 
+		WHEN home_score > away_score THEN football_results.home_team
+		WHEN home_score < away_score THEN football_results.away_team
+		ELSE 'draw' END AS winner
+FROM football_results;
+
+CREATE TABLE winners AS
+SELECT date, winner
+FROM winners_and_draws
+WHERE winner <> 'draw';
+
+
+CREATE TABLE winner_year AS
+SELECT winner,
+	EXTRACT(YEAR FROM winners.date) AS just_year
+FROM winners;
+
+CREATE TABLE decades AS 
+SELECT winner, 
+	CASE	
+		WHEN just_year BETWEEN 1870 AND 1879 THEN '1870s'
+		WHEN just_year BETWEEN 1880 AND 1889 THEN '1880s'
+		WHEN just_year BETWEEN 1890 AND 1899 THEN '1890s'
+		WHEN just_year BETWEEN 1900 AND 1909 THEN '1900s'
+		WHEN just_year BETWEEN 1910 AND 1919 THEN '1910s'
+		WHEN just_year BETWEEN 1920 AND 1929 THEN '1920s'
+		WHEN just_year BETWEEN 1930 AND 1939 THEN '1930s'
+		WHEN just_year BETWEEN 1940 AND 1949 THEN '1940s'
+		WHEN just_year BETWEEN 1950 AND 1959 THEN '1950s'
+		WHEN just_year BETWEEN 1960 AND 1969 THEN '1960s'
+		WHEN just_year BETWEEN 1970 AND 1979 THEN '1970s'
+		WHEN just_year BETWEEN 1980 AND 1989 THEN '1980s'
+		WHEN just_year BETWEEN 1990 AND 1999 THEN '1990s'
+		WHEN just_year BETWEEN 2000 AND 2009 THEN '2000s'
+		WHEN just_year BETWEEN 2010 AND 2019 THEN '2010s'
+		ELSE'2020s' END AS decades
+FROM winner_year
+ORDER BY decades ASC;
+
+--lets find out the teams that dominated the different eras. 
+CREATE TABLE ranked_winner AS 
+SELECT winner, decades, COUNT(winner) AS count_winner,
+RANK () OVER ( PARTITION BY decades.decades ORDER BY COUNT(winner) DESC)
+FROM decades
+GROUP BY decades.winner, decades.decades;
+
+--FINAL RESULT
+SELECT winner, decades
+FROM ranked_winner 
+WHERE rank = 1;
+	
+	
+--QUESTION 3
+--lets find out the total number of goals for home_teams and away_teams
+--home_teams
+SELECT SUM(home_score) AS sum_of_home_score
+FROM football_results;
+
+--away_teams
+SELECT SUM(away_score) AS sum_of_away_score
+FROM football_results;
+
+--total number of goals
+SELECT SUM(away_score) + SUM(home_score) AS total_no_of_goals
+FROM football_results; 
+
+--lets find out the trend of the number of matches that was played as the years go by
+CREATE VIEW just_year_3 AS
+SELECT 
+ EXTRACT(YEAR FROM football_results.date) AS just_year
+ --COUNT(just_year) AS count_just_year
+FROM football_results;
+
+SELECT *, COUNT(just_year) AS count_just_year 
+FROM just_year_3
+GROUP BY just_year
+ORDER BY just_year ASC;
+
+--lets see the different countries where the football match was held. 
+SELECT country, COUNT(country) AS count_country 
+FROM football_results
+GROUP BY country
+ORDER BY count_country DESC;
+
+--QUESTION 4
+--lets see if playing frendlies or friendly tournaments helps or hurts teams
+--first, lets see the different types of tournaments
+SELECT COUNT (DISTINCT tournament) 
+FROM winners_and_draws
+ORDER BY tournament ASC;
+
+--now. lets count the number of distinct tournaments
+SELECT COUNT (DISTINCT tournament) AS total_no_tournaments
+FROM winners_and_draws;
+
+
+--lets see the top 5 teams in friendlies and friendly tournaments
+--for the friendly games
+SELECT winner, tournament, count(winner) as count_winner
+FROM winners_and_draws
+WHERE tournament IN ('UEFA Nations League', 'Guangzhou International Friendship Tournament','Copa Premio Honor Argentino',
+					'Cyprus International Tournament', 'Copa Félix Bogado', 'Dunhill Cup',
+					'Prime Minister''s Cup', 'Beijing International Friendship Tournament', 'Copa del Pacifico',
+					'Jordan International Tournament', 'Malta International Tournament', 
+					'Copa Paz del Chazo', 'Merdeka Tournament', 'United Arab Emirates Friendship Tournament', 'Tournoi de France',
+					'Copa Premio Honor Uruguayo', 'Copa Chevallier Boutell', 'Three Nations Cup',
+					'TIFOCO Tournament', 'Copa Lipton', 'Rous Cup', 'Mahinda Rajapaksa Cup', 'Friendly',
+					'Copa Newton') AND winner<> 'draw'
+GROUP BY tournament, winner
+ORDER BY count_winner DESC
+LIMIT 10;
+
+--for real games
+SELECT winner, tournament, count(winner) as count_winner
+FROM winners_and_draws
+WHERE tournament NOT IN ('UEFA Nations League', 'Guangzhou International Friendship Tournament','Copa Premio Honor Argentino',
+					'Cyprus International Tournament', 'Copa Félix Bogado', 'Dunhill Cup',
+					'Prime Minister''s Cup', 'Beijing International Friendship Tournament', 'Copa del Pacifico',
+					'Jordan International Tournament', 'Malta International Tournament', 
+					'Copa Paz del Chazo', 'Merdeka Tournament', 'United Arab Emirates Friendship Tournament', 'Tournoi de France',
+					'Copa Premio Honor Uruguayo', 'Copa Chevallier Boutell', 'Three Nations Cup',
+					'TIFOCO Tournament', 'Copa Lipton', 'Rous Cup', 'Mahinda Rajapaksa Cup', 'Friendly',
+					'Copa Newton') AND winner<> 'draw'
+GROUP BY tournament, winner
+ORDER BY count_winner DESC
+LIMIT 10;
+
+--lets use a subquery to select values thaat are in the home_team but not in the away_team
+SELECT DISTINCT (home_team) 
+FROM football_results
+WHERE home_team IN 
+	(SELECT away_team
+	FROM football_results);
+
+
+
+
